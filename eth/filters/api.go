@@ -252,16 +252,16 @@ func (api *PublicFilterAPI) Logs(ctx context.Context, crit FilterCriteria) (*rpc
 		matchedLogs = make(chan []*types.Log)
 	)
 
-	logsSub, err := api.events.SubscribeLogs(ethereum.FilterQuery(crit), matchedLogs)
-	if err != nil {
-		return nil, err
-	}
-
 	if crit.FromBlock == nil {
 		crit.FromBlock = big.NewInt(int64(rpc.PendingBlockNumber))
 	}
 	if crit.ToBlock == nil {
 		crit.ToBlock = big.NewInt(int64(rpc.PendingBlockNumber))
+	}
+
+	logsSub, err := api.events.SubscribeLogs(ethereum.FilterQuery(crit), matchedLogs)
+	if err != nil {
+		return nil, err
 	}
 
 	go func() {
