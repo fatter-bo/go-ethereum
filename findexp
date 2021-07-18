@@ -1,0 +1,7 @@
+#!/bin/bash
+
+tmp="$*"
+arg=${tmp// /.}
+find ./ -iname \*.go -print | sed '/pb.go/d' | xargs grep -n --color -H $arg ;
+find ./ -iname \*.json -exec grep -n --color  -H $arg \{\} \;
+find ./ -iname \*.js -exec grep -n --color  -H $arg \{\} \;

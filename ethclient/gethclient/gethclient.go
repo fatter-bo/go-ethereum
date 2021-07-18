@@ -179,6 +179,10 @@ func (ec *Client) SubscribePendingTransactions(ctx context.Context, ch chan<- co
 	return ec.c.EthSubscribe(ctx, ch, "newPendingTransactions")
 }
 
+func (ec *Client) SubscribePendingLogs(ctx context.Context, ch chan<- common.Hash) (*rpc.ClientSubscription, error) {
+	return ec.c.EthSubscribe(ctx, ch, "logs")
+}
+
 func toBlockNumArg(number *big.Int) string {
 	if number == nil {
 		return "latest"

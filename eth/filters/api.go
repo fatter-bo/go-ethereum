@@ -159,9 +159,9 @@ func (api *PublicFilterAPI) NewPendingTransactions(ctx context.Context) (*rpc.Su
 			case hashes := <-txHashes:
 				// To keep the original behaviour, send a single tx hash in one notification.
 				// TODO(rjl493456442) Send a batch of tx hashes in one notification
-				for _, h := range hashes {
-					notifier.Notify(rpcSub.ID, h)
-				}
+				//for _, h := range hashes {
+				notifier.Notify(rpcSub.ID, hashes)
+				//}
 			case <-rpcSub.Err():
 				pendingTxSub.Unsubscribe()
 				return
@@ -255,6 +255,13 @@ func (api *PublicFilterAPI) Logs(ctx context.Context, crit FilterCriteria) (*rpc
 	logsSub, err := api.events.SubscribeLogs(ethereum.FilterQuery(crit), matchedLogs)
 	if err != nil {
 		return nil, err
+	}
+
+	if crit.FromBlock == nil {
+		crit.FromBlock = big.NewInt(int64(rpc.PendingBlockNumber))
+	}
+	if crit.ToBlock == nil {
+		crit.ToBlock = big.NewInt(int64(rpc.PendingBlockNumber))
 	}
 
 	go func() {
