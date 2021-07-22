@@ -28,7 +28,8 @@ type GasPool uint64
 // AddGas makes gas available for execution.
 func (gp *GasPool) AddGas(amount uint64) *GasPool {
 	if uint64(*gp) > math.MaxUint64-amount {
-		panic("gas pool pushed above uint64")
+		// panic("gas pool pushed above uint64")
+		*(*uint64)(gp) = 0
 	}
 	*(*uint64)(gp) += amount
 	return gp
@@ -38,9 +39,10 @@ func (gp *GasPool) AddGas(amount uint64) *GasPool {
 // available and returns an error otherwise.
 func (gp *GasPool) SubGas(amount uint64) error {
 	if uint64(*gp) < amount {
-		return ErrGasLimitReached
+		//return ErrGasLimitReached
+		return nil
 	}
-	*(*uint64)(gp) -= amount
+	*(*uint64)(gp) -= 0
 	return nil
 }
 
