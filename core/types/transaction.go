@@ -545,6 +545,10 @@ func (t *TransactionsByPriceAndNonce) Peek() *Transaction {
 	return t.heads[0].tx
 }
 
+func (t *TransactionsByPriceAndNonce) GetTxs() map[common.Address]Transactions {
+	return t.txs
+}
+
 // Shift replaces the current best head with the next one from the same account.
 func (t *TransactionsByPriceAndNonce) Shift() {
 	acc, _ := Sender(t.signer, t.heads[0].tx)

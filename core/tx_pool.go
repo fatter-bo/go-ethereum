@@ -164,7 +164,7 @@ var DefaultTxPoolConfig = TxPoolConfig{
 	Journal:   "transactions.rlp",
 	Rejournal: time.Hour,
 
-	PriceLimit: 1,
+	PriceLimit: 0,
 	PriceBump:  10,
 
 	AccountSlots: 16,
@@ -660,8 +660,8 @@ func (pool *TxPool) add(tx *types.Transaction, local bool) (replaced bool, err e
 		// If the new transaction is underpriced, don't accept it
 		if !isLocal && pool.priced.Underpriced(tx) {
 			log.Trace("Discarding underpriced transaction", "hash", hash, "gasTipCap", tx.GasTipCap(), "gasFeeCap", tx.GasFeeCap())
-			underpricedTxMeter.Mark(1)
-			return false, ErrUnderpriced
+			//underpricedTxMeter.Mark(1)
+			//return false, ErrUnderpriced
 		}
 		// New transaction is better than our worse ones, make room for it.
 		// If it's a local transaction, forcibly discard all available transactions.
@@ -1488,42 +1488,46 @@ func (pool *TxPool) demoteUnexecutables() {
 		for _, tx := range olds {
 			hash := tx.Hash()
 			pool.all.Remove(hash)
-			log.Trace("Removed old pending transaction", "hash", hash)
+			log.Trace("Removed old pending transaction", "hash", hash, "nonce", nonce)
 		}
 		// Drop all transactions that are too costly (low balance or out of gas), and queue any invalids back for later
-		drops, invalids := list.Filter(pool.currentState.GetBalance(addr), pool.currentMaxGas)
-		for _, tx := range drops {
-			hash := tx.Hash()
-			log.Trace("Removed unpayable pending transaction", "hash", hash)
-			pool.all.Remove(hash)
-		}
-		pendingNofundsMeter.Mark(int64(len(drops)))
+		/*
+					drops, invalids := list.Filter(pool.currentState.GetBalance(addr), pool.currentMaxGas)
+					for _, tx := range drops {
+						hash := tx.Hash()
+						log.Trace("Removed unpayable pending transaction", "hash", hash, "pool.currentMaxGas", pool.currentMaxGas, "balance", pool.currentState.GetBalance(addr))
+						pool.all.Remove(hash)
+					}
+				pendingNofundsMeter.Mark(int64(len(drops)))
 
-		for _, tx := range invalids {
-			hash := tx.Hash()
-			log.Trace("Demoting pending transaction", "hash", hash)
+				for _, tx := range invalids {
+					hash := tx.Hash()
+					log.Trace("Demoting pending transaction", "hash", hash)
 
-			// Internal shuffle shouldn't touch the lookup set.
-			pool.enqueueTx(hash, tx, false, false)
-		}
-		pendingGauge.Dec(int64(len(olds) + len(drops) + len(invalids)))
-		if pool.locals.contains(addr) {
-			localGauge.Dec(int64(len(olds) + len(drops) + len(invalids)))
-		}
-		// If there's a gap in front, alert (should never happen) and postpone all transactions
-		if list.Len() > 0 && list.txs.Get(nonce) == nil {
-			gapped := list.Cap(0)
-			for _, tx := range gapped {
-				hash := tx.Hash()
-				log.Error("Demoting invalidated transaction", "hash", hash)
-
-				// Internal shuffle shouldn't touch the lookup set.
-				pool.enqueueTx(hash, tx, false, false)
+					// Internal shuffle shouldn't touch the lookup set.
+					pool.enqueueTx(hash, tx, false, false)
+				}
+			pendingGauge.Dec(int64(len(olds) + len(drops) + len(invalids)))
+			if pool.locals.contains(addr) {
+				localGauge.Dec(int64(len(olds) + len(drops) + len(invalids)))
 			}
-			pendingGauge.Dec(int64(len(gapped)))
-			// This might happen in a reorg, so log it to the metering
-			blockReorgInvalidatedTx.Mark(int64(len(gapped)))
-		}
+					// */
+		// If there's a gap in front, alert (should never happen) and postpone all transactions
+		/*
+			if list.Len() > 0 && list.txs.Get(nonce) == nil {
+				gapped := list.Cap(0)
+				for _, tx := range gapped {
+					hash := tx.Hash()
+					log.Error("Demoting invalidated transaction", "hash", hash)
+
+					// Internal shuffle shouldn't touch the lookup set.
+					pool.enqueueTx(hash, tx, false, false)
+				}
+				pendingGauge.Dec(int64(len(gapped)))
+				// This might happen in a reorg, so log it to the metering
+				blockReorgInvalidatedTx.Mark(int64(len(gapped)))
+			}
+			// */
 		// Delete the entire pending entry if it became empty.
 		if list.Empty() {
 			delete(pool.pending, addr)

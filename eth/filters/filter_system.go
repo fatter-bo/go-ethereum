@@ -457,8 +457,9 @@ func (es *EventSystem) eventLoop() {
 
 	for {
 		select {
-		case ev := <-es.txsCh:
-			es.handleTxsEvent(index, ev)
+		case <-es.txsCh:
+		//case ev := <-es.txsCh:
+		//	es.handleTxsEvent(index, ev)
 		case ev := <-es.logsCh:
 			es.handleLogs(index, ev)
 		case ev := <-es.rmLogsCh:

@@ -500,11 +500,17 @@ func (w *worker) mainLoop() {
 			// Note all transactions received may not be continuous with transactions
 			// already included in the current mining block. These transactions will
 			// be automatically eliminated.
-			if !w.isRunning() && w.current != nil {
-				// If block is already full, abort
-				if gp := w.current.gasPool; gp != nil && gp.Gas() < params.TxGas {
-					continue
+			if !w.isRunning() {
+				if w.current == nil {
+					log.Warn("worker.mainLoop:w.commitNewWork.xxxxxx:0:")
+					w.commitNewWork(nil, true, time.Now().Unix())
 				}
+				// If block is already full, abort
+				//if gp := w.current.gasPool; gp != nil && gp.Gas() < params.TxGas {
+				//log.Warn("worker.mainLoop:xxxxxx:1:")
+				//continue
+				//}
+				//log.Warn("worker.mainLoop:xxxxxx:2:")
 				w.mu.RLock()
 				coinbase := w.coinbase
 				w.mu.RUnlock()
@@ -513,20 +519,56 @@ func (w *worker) mainLoop() {
 				for _, tx := range ev.Txs {
 					acc, _ := types.Sender(w.current.signer, tx)
 					txs[acc] = append(txs[acc], tx)
+					//log.Debug("worker.mainLoop:0:", "hash", tx.Hash())
 				}
-				txset := types.NewTransactionsByPriceAndNonce(w.current.signer, txs, w.current.header.BaseFee)
-				tcount := w.current.tcount
-				w.commitTransactions(txset, coinbase, nil)
-				// Only update the snapshot if any new transactons were added
-				// to the pending block
-				if tcount != w.current.tcount {
-					w.updateSnapshot()
+				txsChLen := len(w.txsCh)
+				for i := 0; i < txsChLen; i++ {
+					ev1 := <-w.txsCh
+					for _, tx := range ev1.Txs {
+						acc, _ := types.Sender(w.current.signer, tx)
+						txs[acc] = append(txs[acc], tx)
+						//log.Debug("worker.mainLoop:1:", "hash", tx.Hash())
+					}
+				}
+				//st.state.SetNonce(msg.From(), st.state.GetNonce(sender.Address())+1)
+				/*
+					nonceMap := make(map[common.Address]uint64)
+					for _, tx := range ev.Txs {
+						acc, _ := types.Sender(w.current.signer, tx)
+						txs[acc] = append(txs[acc], tx)
+						nonceMap[acc] = w.current.state.GetNonce(acc)
+					}
+					// */
+				tmpLen := len(txs)
+				if tmpLen > 0 {
+					txset := types.NewTransactionsByPriceAndNonce(w.current.signer, txs, nil) //w.current.header.BaseFee
+					if len(txset.GetTxs()) > 0 {
+						tcount := w.current.tcount
+						w.current.state.IgnoreReset = true
+						snap := w.current.state.Snapshot()
+						//stateold := w.current.state.Copy()
+						w.commitTransactions(txset, coinbase, nil)
+						/*
+							for k, v := range nonceMap {
+								w.current.state.SetNonce(k, v)
+							}
+							// */
+						// Only update the snapshot if any new transactons were added
+						// to the pending block
+						if tcount != w.current.tcount {
+							w.updateSnapshot()
+						}
+						w.current.state.RevertToSnapshot(snap)
+						w.current.state.IgnoreReset = false
+						//w.current.state = stateold
+					}
 				}
 			} else {
 				// Special case, if the consensus engine is 0 period clique(dev mode),
 				// submit mining work here since all empty submission will be rejected
 				// by clique. Of course the advance sealing(empty submission) is disabled.
 				if w.chainConfig.Clique != nil && w.chainConfig.Clique.Period == 0 {
+					log.Warn("worker.mainLoop:w.commitNewWork.xxxxxx:1:")
 					w.commitNewWork(nil, true, time.Now().Unix())
 				}
 			}
@@ -800,7 +842,7 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 		// If we don't have enough gas for any further transactions then we're done
 		if w.current.gasPool.Gas() < params.TxGas {
 			log.Trace("Not enough gas for further transactions", "have", w.current.gasPool, "want", params.TxGas)
-			break
+			//break
 		}
 		// Retrieve the next transaction and abort if all done
 		tx := txs.Peek()
@@ -824,6 +866,8 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 		w.current.state.Prepare(tx.Hash(), w.current.tcount)
 
 		logs, err := w.commitTransaction(tx, coinbase)
+		first := true
+	LOOP:
 		switch {
 		case errors.Is(err, core.ErrGasLimitReached):
 			// Pop the current out-of-gas transaction without shifting in the next from the account
@@ -832,12 +876,26 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 
 		case errors.Is(err, core.ErrNonceTooLow):
 			// New head notification data race between the transaction pool and miner, shift
-			log.Trace("Skipping transaction with low nonce", "sender", from, "nonce", tx.Nonce())
+			log.Trace("Skipping transaction with low nonce:1:", "sender", from, "nonce", tx.Nonce(), "err", err, "first", first)
+			if first {
+				first = false
+				w.current.state.SetNonce(from, w.current.state.GetNonce(from)-1)
+				w.current.state.Prepare(tx.Hash(), w.current.tcount)
+				logs, err = w.commitTransaction(tx, coinbase)
+				goto LOOP
+			}
 			txs.Shift()
 
 		case errors.Is(err, core.ErrNonceTooHigh):
 			// Reorg notification data race between the transaction pool and miner, skip account =
 			log.Trace("Skipping account with hight nonce", "sender", from, "nonce", tx.Nonce())
+			if first {
+				w.current.state.SetNonce(from, w.current.state.GetNonce(from)+1)
+				w.current.state.Prepare(tx.Hash(), w.current.tcount)
+				logs, err = w.commitTransaction(tx, coinbase)
+				first = false
+				goto LOOP
+			}
 			txs.Pop()
 
 		case errors.Is(err, nil):
@@ -858,6 +916,7 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 			txs.Shift()
 		}
 	}
+	log.Debug("worker.commitTransactions:1:", "running", w.isRunning(), "len", len(coalescedLogs))
 
 	if !w.isRunning() && len(coalescedLogs) > 0 {
 		// We don't push the pendingLogsEvent while we are mining. The reason is that
@@ -1000,13 +1059,14 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 		}
 	}
 	if len(localTxs) > 0 {
-		txs := types.NewTransactionsByPriceAndNonce(w.current.signer, localTxs, header.BaseFee)
+		txs := types.NewTransactionsByPriceAndNonce(w.current.signer, localTxs, nil) //header.BaseFee
 		if w.commitTransactions(txs, w.coinbase, interrupt) {
 			return
 		}
 	}
-	if len(remoteTxs) > 0 {
-		txs := types.NewTransactionsByPriceAndNonce(w.current.signer, remoteTxs, header.BaseFee)
+	tmpLen := len(remoteTxs)
+	if tmpLen > 0 {
+		txs := types.NewTransactionsByPriceAndNonce(w.current.signer, remoteTxs, nil) //header.BaseFee
 		if w.commitTransactions(txs, w.coinbase, interrupt) {
 			return
 		}

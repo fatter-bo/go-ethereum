@@ -254,6 +254,7 @@ func (api *PublicFilterAPI) Logs(ctx context.Context, crit FilterCriteria) (*rpc
 
 	if crit.FromBlock == nil {
 		crit.FromBlock = big.NewInt(int64(rpc.PendingBlockNumber))
+		//crit.FromBlock = big.NewInt(int64(rpc.LatestBlockNumber))
 	}
 	if crit.ToBlock == nil {
 		crit.ToBlock = big.NewInt(int64(rpc.PendingBlockNumber))
