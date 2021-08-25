@@ -517,7 +517,7 @@ func NewTransactionsByPriceAndNonce(signer Signer, txs map[common.Address]Transa
 	heads := make(TxByPriceAndTime, 0, len(txs))
 	for from, accTxs := range txs {
 		acc, _ := Sender(signer, accTxs[0])
-		wrapped, err := NewTxWithMinerFee(accTxs[0], baseFee)
+		wrapped, err := NewTxWithMinerFee(accTxs[0], nil) //baseFee
 		// Remove transaction if sender doesn't match from, or if wrapping fails.
 		if acc != from || err != nil {
 			delete(txs, from)

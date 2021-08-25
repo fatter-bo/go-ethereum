@@ -519,7 +519,7 @@ func (w *worker) mainLoop() {
 				for _, tx := range ev.Txs {
 					acc, _ := types.Sender(w.current.signer, tx)
 					txs[acc] = append(txs[acc], tx)
-					//log.Debug("worker.mainLoop:0:", "hash", tx.Hash())
+					log.Debug("worker.mainLoop:0:", "hash", tx.Hash())
 				}
 				txsChLen := len(w.txsCh)
 				for i := 0; i < txsChLen; i++ {
@@ -527,7 +527,7 @@ func (w *worker) mainLoop() {
 					for _, tx := range ev1.Txs {
 						acc, _ := types.Sender(w.current.signer, tx)
 						txs[acc] = append(txs[acc], tx)
-						//log.Debug("worker.mainLoop:1:", "hash", tx.Hash())
+						log.Debug("worker.mainLoop:1:", "hash", tx.Hash())
 					}
 				}
 				//st.state.SetNonce(msg.From(), st.state.GetNonce(sender.Address())+1)
@@ -866,7 +866,7 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 		w.current.state.Prepare(tx.Hash(), w.current.tcount)
 
 		logs, err := w.commitTransaction(tx, coinbase)
-		first := true
+		trytimes := uint64(0)
 	LOOP:
 		switch {
 		case errors.Is(err, core.ErrGasLimitReached):
@@ -876,24 +876,25 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 
 		case errors.Is(err, core.ErrNonceTooLow):
 			// New head notification data race between the transaction pool and miner, shift
-			log.Trace("Skipping transaction with low nonce:1:", "sender", from, "nonce", tx.Nonce(), "err", err, "first", first)
-			if first {
-				first = false
-				w.current.state.SetNonce(from, w.current.state.GetNonce(from)-1)
+			log.Trace("Skipping transaction with low nonce:1:", "sender", from, "nonce", tx.Nonce(), "getnonce", w.current.state.GetNonce(from), "err", err, "trytimes", trytimes, "hash", tx.Hash())
+			if trytimes < 10 {
+				trytimes += 1
+				w.current.state.SetNonce(from, tx.Nonce())
 				w.current.state.Prepare(tx.Hash(), w.current.tcount)
 				logs, err = w.commitTransaction(tx, coinbase)
 				goto LOOP
 			}
-			txs.Shift()
+			txs.Pop()
 
 		case errors.Is(err, core.ErrNonceTooHigh):
 			// Reorg notification data race between the transaction pool and miner, skip account =
-			log.Trace("Skipping account with hight nonce", "sender", from, "nonce", tx.Nonce())
-			if first {
-				w.current.state.SetNonce(from, w.current.state.GetNonce(from)+1)
+			log.Trace("Skipping account with hight nonce", "sender", from, "nonce", tx.Nonce(), "getnonce", w.current.state.GetNonce(from), "err", err, "hash", tx.Hash())
+			if trytimes < 10 {
+				trytimes += 1
+				w.current.state.SetNonce(from, tx.Nonce())
+				//w.current.state.SetNonce(from, w.current.state.GetNonce(from)+1)
 				w.current.state.Prepare(tx.Hash(), w.current.tcount)
 				logs, err = w.commitTransaction(tx, coinbase)
-				first = false
 				goto LOOP
 			}
 			txs.Pop()
@@ -913,7 +914,8 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 			// Strange error, discard the transaction and get the next in line (note, the
 			// nonce-too-high clause will prevent us from executing in vain).
 			log.Debug("Transaction failed, account skipped", "hash", tx.Hash(), "err", err)
-			txs.Shift()
+			txs.Pop()
+			//txs.Shift()
 		}
 	}
 	log.Debug("worker.commitTransactions:1:", "running", w.isRunning(), "len", len(coalescedLogs))
@@ -930,6 +932,7 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 		for i, l := range coalescedLogs {
 			cpy[i] = new(types.Log)
 			*cpy[i] = *l
+			log.Debug("w.pendingLogsFeed.Send:", "hash", l.TxHash)
 		}
 		w.pendingLogsFeed.Send(cpy)
 	}

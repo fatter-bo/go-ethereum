@@ -1147,8 +1147,8 @@ func (pool *TxPool) runReorg(done chan struct{}, reset *txpoolResetRequest, dirt
 	// If a new block appeared, validate the pool of pending transactions. This will
 	// remove any transaction that has been included in the block or was invalidated
 	// because of another transaction (e.g. higher gas price).
+	pool.demoteUnexecutables()
 	if reset != nil {
-		pool.demoteUnexecutables()
 		if reset.newHead != nil && pool.chainconfig.IsLondon(new(big.Int).Add(reset.newHead.Number, big.NewInt(1))) {
 			pendingBaseFee := misc.CalcBaseFee(pool.chainconfig, reset.newHead)
 			pool.priced.SetBaseFee(pendingBaseFee)
