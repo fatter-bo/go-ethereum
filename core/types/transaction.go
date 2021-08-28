@@ -61,6 +61,7 @@ type Transaction struct {
 // NewTx creates a new transaction.
 func NewTx(inner TxData) *Transaction {
 	tx := new(Transaction)
+	//tx.CheckTime()
 	tx.setDecoded(inner.copy(), 0)
 	return tx
 }
@@ -85,6 +86,16 @@ type TxData interface {
 
 	rawSignatureValues() (v, r, s *big.Int)
 	setSignatureValues(chainID, v, r, s *big.Int)
+}
+
+func (tx *Transaction) CheckTime() {
+	if time.Now().Second() < tx.time.Second() {
+		tx.time = time.Now()
+	}
+}
+
+func (tx *Transaction) Time() time.Time {
+	return tx.time
 }
 
 // EncodeRLP implements rlp.Encoder

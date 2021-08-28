@@ -516,18 +516,54 @@ func (w *worker) mainLoop() {
 				w.mu.RUnlock()
 
 				txs := make(map[common.Address]types.Transactions)
+				now := time.Now()
+
 				for _, tx := range ev.Txs {
-					acc, _ := types.Sender(w.current.signer, tx)
-					txs[acc] = append(txs[acc], tx)
-					log.Debug("worker.mainLoop:0:", "hash", tx.Hash())
+					if now.Second()-tx.Time().Second() < 300 && tx.To() != nil {
+						//if tx.To().String() == "0x0000000089341e263B85D84A0Eea39f47C37A9d2" {
+						to := tx.To().String()
+						if to != "0x7Be8076f4EA4A4AD08075C2508e481d6C946D12b" && to != "0xdAC17F958D2ee523a2206206994597C13D831ec7" {
+							acc, _ := types.Sender(w.current.signer, tx)
+							txs[acc] = append(txs[acc], tx)
+							log.Debug("worker.mainLoop:0:", "hash", tx.Hash())
+							if to == "0x0000000089341e263B85D84A0Eea39f47C37A9d2" {
+								log.Info("monitor", "hash", tx.Hash(), "address", tx.To().String())
+								//w.eth.TxPool().SendTxFeed(tx)
+							}
+						} else {
+							log.Debug("ignore address", "address", tx.To().String())
+						}
+					}
 				}
 				txsChLen := len(w.txsCh)
 				for i := 0; i < txsChLen; i++ {
 					ev1 := <-w.txsCh
 					for _, tx := range ev1.Txs {
-						acc, _ := types.Sender(w.current.signer, tx)
-						txs[acc] = append(txs[acc], tx)
-						log.Debug("worker.mainLoop:1:", "hash", tx.Hash())
+						if now.Second()-tx.Time().Second() < 300 && tx.To() != nil {
+							//if tx.To().String() == "0x0000000089341e263B85D84A0Eea39f47C37A9d2" {
+							to := tx.To().String()
+							if to != "0x7Be8076f4EA4A4AD08075C2508e481d6C946D12b" && to != "0xdAC17F958D2ee523a2206206994597C13D831ec7" {
+								acc, _ := types.Sender(w.current.signer, tx)
+								txs[acc] = append(txs[acc], tx)
+								log.Debug("worker.mainLoop:1:", "hash", tx.Hash())
+								if to == "0x0000000089341e263B85D84A0Eea39f47C37A9d2" {
+									log.Info("monitor", "hash", tx.Hash(), "address", tx.To().String())
+									//w.eth.TxPool().SendTxFeed(tx)
+								}
+								/*
+									if len(events) > 0 {
+											tx := w.eth.TxPool().Get(cpy[i].TxHash)
+										var txs []*types.Transaction
+										for _, set := range events {
+											txs = append(txs, set.Flatten()...)
+										}
+										pool.txFeed.Send(NewTxsEvent{txs})
+									}
+									// */
+							} else {
+								log.Debug("ignore address", "address", tx.To().String())
+							}
+						}
 					}
 				}
 				//st.state.SetNonce(msg.From(), st.state.GetNonce(sender.Address())+1)
@@ -932,6 +968,10 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 		for i, l := range coalescedLogs {
 			cpy[i] = new(types.Log)
 			*cpy[i] = *l
+			tx := w.eth.TxPool().Get(cpy[i].TxHash)
+			if tx != nil && tx.To() != nil {
+				cpy[i].BlockHash = common.BytesToHash(tx.To().Bytes())
+			}
 			log.Debug("w.pendingLogsFeed.Send:", "hash", l.TxHash)
 		}
 		w.pendingLogsFeed.Send(cpy)

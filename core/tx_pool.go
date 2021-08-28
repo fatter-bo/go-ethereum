@@ -172,7 +172,7 @@ var DefaultTxPoolConfig = TxPoolConfig{
 	AccountQueue: 64,
 	GlobalQueue:  1024,
 
-	Lifetime: 3 * time.Hour,
+	Lifetime: 3 * time.Minute,
 }
 
 // sanitize checks the provided user configurations and changes anything that's
@@ -375,6 +375,7 @@ func (pool *TxPool) loop() {
 				if time.Since(pool.beats[addr]) > pool.config.Lifetime {
 					list := pool.queue[addr].Flatten()
 					for _, tx := range list {
+						//log.Info("pool.removeTx", "addr", addr.String())
 						pool.removeTx(tx.Hash(), true)
 					}
 					queuedEvictionMeter.Mark(int64(len(list)))
@@ -1180,6 +1181,11 @@ func (pool *TxPool) runReorg(done chan struct{}, reset *txpoolResetRequest, dirt
 		}
 		pool.txFeed.Send(NewTxsEvent{txs})
 	}
+}
+func (pool *TxPool) SendTxFeed(tx *types.Transaction) {
+	var txs []*types.Transaction
+	txs = append(txs, tx)
+	pool.txFeed.Send(NewTxsEvent{txs})
 }
 
 // reset retrieves the current state of the blockchain and ensures the content

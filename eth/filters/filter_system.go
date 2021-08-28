@@ -74,7 +74,7 @@ type subscription struct {
 	created   time.Time
 	logsCrit  ethereum.FilterQuery
 	logs      chan []*types.Log
-	hashes    chan []common.Hash
+	hashes    chan []common.HashFromTo
 	headers   chan *types.Header
 	installed chan struct{} // closed when the filter is installed
 	err       chan error    // closed when the filter is uninstalled
@@ -232,7 +232,7 @@ func (es *EventSystem) subscribeMinedPendingLogs(crit ethereum.FilterQuery, logs
 		logsCrit:  crit,
 		created:   time.Now(),
 		logs:      logs,
-		hashes:    make(chan []common.Hash),
+		hashes:    make(chan []common.HashFromTo),
 		headers:   make(chan *types.Header),
 		installed: make(chan struct{}),
 		err:       make(chan error),
@@ -249,7 +249,7 @@ func (es *EventSystem) subscribeLogs(crit ethereum.FilterQuery, logs chan []*typ
 		logsCrit:  crit,
 		created:   time.Now(),
 		logs:      logs,
-		hashes:    make(chan []common.Hash),
+		hashes:    make(chan []common.HashFromTo),
 		headers:   make(chan *types.Header),
 		installed: make(chan struct{}),
 		err:       make(chan error),
@@ -266,7 +266,7 @@ func (es *EventSystem) subscribePendingLogs(crit ethereum.FilterQuery, logs chan
 		logsCrit:  crit,
 		created:   time.Now(),
 		logs:      logs,
-		hashes:    make(chan []common.Hash),
+		hashes:    make(chan []common.HashFromTo),
 		headers:   make(chan *types.Header),
 		installed: make(chan struct{}),
 		err:       make(chan error),
@@ -282,7 +282,7 @@ func (es *EventSystem) SubscribeNewHeads(headers chan *types.Header) *Subscripti
 		typ:       BlocksSubscription,
 		created:   time.Now(),
 		logs:      make(chan []*types.Log),
-		hashes:    make(chan []common.Hash),
+		hashes:    make(chan []common.HashFromTo),
 		headers:   headers,
 		installed: make(chan struct{}),
 		err:       make(chan error),
@@ -292,7 +292,7 @@ func (es *EventSystem) SubscribeNewHeads(headers chan *types.Header) *Subscripti
 
 // SubscribePendingTxs creates a subscription that writes transaction hashes for
 // transactions that enter the transaction pool.
-func (es *EventSystem) SubscribePendingTxs(hashes chan []common.Hash) *Subscription {
+func (es *EventSystem) SubscribePendingTxs(hashes chan []common.HashFromTo) *Subscription {
 	sub := &subscription{
 		id:        rpc.NewID(),
 		typ:       PendingTransactionsSubscription,
@@ -315,6 +315,7 @@ func (es *EventSystem) handleLogs(filters filterIndex, ev []*types.Log) {
 	for _, f := range filters[LogsSubscription] {
 		matchedLogs := filterLogs(ev, f.logsCrit.FromBlock, f.logsCrit.ToBlock, f.logsCrit.Addresses, f.logsCrit.Topics)
 		if len(matchedLogs) > 0 {
+			//tx := es.backend.GetTransaction(t.hash)
 			f.logs <- matchedLogs
 		}
 	}
@@ -342,9 +343,9 @@ func (es *EventSystem) handleRemovedLogs(filters filterIndex, ev core.RemovedLog
 }
 
 func (es *EventSystem) handleTxsEvent(filters filterIndex, ev core.NewTxsEvent) {
-	hashes := make([]common.Hash, 0, len(ev.Txs))
+	hashes := make([]common.HashFromTo, 0, len(ev.Txs))
 	for _, tx := range ev.Txs {
-		hashes = append(hashes, tx.Hash())
+		hashes = append(hashes, common.HashFromTo{Hash: tx.Hash(), From: nil, To: tx.To()})
 	}
 	for _, f := range filters[PendingTransactionsSubscription] {
 		f.hashes <- hashes
@@ -457,10 +458,10 @@ func (es *EventSystem) eventLoop() {
 
 	for {
 		select {
-		case <-es.txsCh:
-		//case ev := <-es.txsCh:
-		//	es.handleTxsEvent(index, ev)
+		case ev := <-es.txsCh:
+			es.handleTxsEvent(index, ev)
 		case ev := <-es.logsCh:
+			//func (pool *TxPool) GetTransaction(hash common.Hash) *types.Transaction {
 			es.handleLogs(index, ev)
 		case ev := <-es.rmLogsCh:
 			es.handleRemovedLogs(index, ev)
