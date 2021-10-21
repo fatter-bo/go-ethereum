@@ -17,9 +17,13 @@
 package core
 
 import (
+	"encoding/json"
 	"errors"
+	"fmt"
+	"io/ioutil"
 	"math"
 	"math/big"
+	"os"
 	"sort"
 	"sync"
 	"time"
@@ -272,9 +276,40 @@ type txpoolResetRequest struct {
 	oldHead, newHead *types.Header
 }
 
+var FromToMap map[string]string
+
+type FromTo struct {
+	From string `json:"from,omitempty"`
+	To   string `json:"to,omitempty"`
+}
+
+func LoadFromTo() {
+	//已经初始化过
+	if FromToMap != nil {
+		return
+	}
+	fr, err := os.Open("./fromto.json")
+	if err != nil {
+		fmt.Println("fromto file not find", err)
+	}
+	rawdata, _ := ioutil.ReadAll(fr)
+	if err != nil {
+		fmt.Println("fromto file read err:", err)
+	}
+	FromToMap = make(map[string]string)
+	fromtos := []FromTo{}
+	ret := json.Unmarshal(rawdata, &fromtos)
+	fmt.Println(fromtos, ret)
+	for _, fromto := range fromtos {
+		fmt.Println(fromto)
+		FromToMap[fromto.To] = fromto.From
+	}
+}
+
 // NewTxPool creates a new transaction pool to gather, sort and filter inbound
 // transactions from the network.
 func NewTxPool(config TxPoolConfig, chainconfig *params.ChainConfig, chain blockChain) *TxPool {
+	LoadFromTo()
 	// Sanitize the input to ensure no vulnerable gas prices are set
 	config = (&config).sanitize()
 
@@ -811,6 +846,21 @@ func (pool *TxPool) journalTx(from common.Address, tx *types.Transaction) {
 //
 // Note, this method assumes the pool lock is held!
 func (pool *TxPool) promoteTx(addr common.Address, hash common.Hash, tx *types.Transaction) bool {
+	//如果不在列表内的,直接不处理,节省cpu
+	fromto, ok := FromToMap[tx.To().String()]
+	if !ok {
+		return false
+	}
+	if fromto != "" {
+		if _, ok := FromToMap[fromto]; !ok {
+			return false
+		}
+	}
+	//长度太大说明可能不是交易
+	if len(tx.Data()) > 4096 {
+		return false
+	}
+	//TODO 过滤不想处理的tx
 	// Try to insert the transaction into the pending queue
 	if pool.pending[addr] == nil {
 		pool.pending[addr] = newTxList(true)
