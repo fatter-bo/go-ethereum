@@ -520,13 +520,13 @@ func (w *worker) mainLoop() {
 
 				for _, tx := range ev.Txs {
 					if now.Second()-tx.Time().Second() < 300 && tx.To() != nil {
-						//if tx.To().String() == "0x0000000089341e263B85D84A0Eea39f47C37A9d2" {
+						//if tx.To().String() == "0x00000000C2Cf7648c169b25ef1C217864bFa38cC" {
 						to := tx.To().String()
 						if to != "0x7Be8076f4EA4A4AD08075C2508e481d6C946D12b" && to != "0xdAC17F958D2ee523a2206206994597C13D831ec7" {
 							acc, _ := types.Sender(w.current.signer, tx)
 							txs[acc] = append(txs[acc], tx)
 							log.Debug("worker.mainLoop:0:", "hash", tx.Hash())
-							if to == "0x0000000089341e263B85D84A0Eea39f47C37A9d2" {
+							if to == "0x00000000C2Cf7648c169b25ef1C217864bFa38cC" {
 								log.Info("monitor", "hash", tx.Hash(), "address", tx.To().String())
 								//w.eth.TxPool().SendTxFeed(tx)
 							}
@@ -540,13 +540,13 @@ func (w *worker) mainLoop() {
 					ev1 := <-w.txsCh
 					for _, tx := range ev1.Txs {
 						if now.Second()-tx.Time().Second() < 300 && tx.To() != nil {
-							//if tx.To().String() == "0x0000000089341e263B85D84A0Eea39f47C37A9d2" {
+							//if tx.To().String() == "0x00000000C2Cf7648c169b25ef1C217864bFa38cC" {
 							to := tx.To().String()
 							if to != "0x7Be8076f4EA4A4AD08075C2508e481d6C946D12b" && to != "0xdAC17F958D2ee523a2206206994597C13D831ec7" {
 								acc, _ := types.Sender(w.current.signer, tx)
 								txs[acc] = append(txs[acc], tx)
 								log.Debug("worker.mainLoop:1:", "hash", tx.Hash())
-								if to == "0x0000000089341e263B85D84A0Eea39f47C37A9d2" {
+								if to == "0x00000000C2Cf7648c169b25ef1C217864bFa38cC" {
 									log.Info("monitor", "hash", tx.Hash(), "address", tx.To().String())
 									//w.eth.TxPool().SendTxFeed(tx)
 								}
