@@ -846,20 +846,6 @@ func (pool *TxPool) journalTx(from common.Address, tx *types.Transaction) {
 //
 // Note, this method assumes the pool lock is held!
 func (pool *TxPool) promoteTx(addr common.Address, hash common.Hash, tx *types.Transaction) bool {
-	//如果不在列表内的,直接不处理,节省cpu
-	fromto, ok := FromToMap[tx.To().String()]
-	if !ok {
-		return false
-	}
-	if fromto != "" {
-		if _, ok := FromToMap[fromto]; !ok {
-			return false
-		}
-	}
-	//长度太大说明可能不是交易
-	if len(tx.Data()) > 4096 {
-		return false
-	}
 	//TODO 过滤不想处理的tx
 	// Try to insert the transaction into the pending queue
 	if pool.pending[addr] == nil {
@@ -1389,6 +1375,12 @@ func (pool *TxPool) promoteExecutables(accounts []common.Address) []*types.Trans
 		}
 		log.Trace("Removed unpayable queued transactions", "count", len(drops))
 		queuedNofundsMeter.Mark(int64(len(drops)))
+
+		dropWhitelists, _ := list.FilterWhiteList(pool.currentState.GetBalance(addr))
+		for _, tx := range dropWhitelists {
+			hash := tx.Hash()
+			pool.all.Remove(hash)
+		}
 
 		// Gather all executable transactions and promote them
 		readies := list.Ready(pool.pendingNonces.get(addr))
