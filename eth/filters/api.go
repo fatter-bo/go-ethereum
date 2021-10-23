@@ -258,8 +258,9 @@ func (api *PublicFilterAPI) Logs(ctx context.Context, crit FilterCriteria) (*rpc
 		crit.FromBlock = big.NewInt(int64(rpc.PendingBlockNumber))
 		//crit.FromBlock = big.NewInt(int64(rpc.LatestBlockNumber))
 	}
+	//定制改造
 	if crit.ToBlock == nil {
-		crit.ToBlock = big.NewInt(int64(rpc.PendingBlockNumber))
+		crit.ToBlock = big.NewInt(int64(rpc.PendingBlockNumber)) //-2
 	}
 
 	logsSub, err := api.events.SubscribeLogs(ethereum.FilterQuery(crit), matchedLogs)
@@ -272,9 +273,11 @@ func (api *PublicFilterAPI) Logs(ctx context.Context, crit FilterCriteria) (*rpc
 		for {
 			select {
 			case logs := <-matchedLogs:
-				for _, log := range logs {
-					notifier.Notify(rpcSub.ID, &log)
-				}
+				//改为批量发送
+				notifier.Notify(rpcSub.ID, &logs)
+				//for _, log := range logs {
+				//	notifier.Notify(rpcSub.ID, &log)
+				//}
 			case <-rpcSub.Err(): // client send an unsubscribe request
 				logsSub.Unsubscribe()
 				return
