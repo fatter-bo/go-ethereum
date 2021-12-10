@@ -240,8 +240,7 @@ func (s *StateDB) AddRefund(gas uint64) {
 func (s *StateDB) SubRefund(gas uint64) {
 	s.journal.append(refundChange{prev: s.refund})
 	if gas > s.refund {
-		gas = 0
-		//panic(fmt.Sprintf("Refund counter below zero (gas: %d > refund: %d)", gas, s.refund))
+		panic(fmt.Sprintf("Refund counter below zero (gas: %d > refund: %d)", gas, s.refund))
 	}
 	s.refund -= gas
 }
@@ -462,12 +461,7 @@ func (s *StateDB) updateStateObject(obj *stateObject) {
 	}
 	// Encode the account and update the account trie
 	addr := obj.Address()
-
-	data, err := rlp.EncodeToBytes(obj)
-	if err != nil {
-		panic(fmt.Errorf("can't encode object at %x: %v", addr[:], err))
-	}
-	if err = s.trie.TryUpdate(addr[:], data); err != nil {
+	if err := s.trie.TryUpdateAccount(addr[:], &obj.data); err != nil {
 		s.setError(fmt.Errorf("updateStateObject (%x) error: %v", addr[:], err))
 	}
 
@@ -514,7 +508,7 @@ func (s *StateDB) getDeletedStateObject(addr common.Address) *stateObject {
 	}
 	// If no live objects are available, attempt to use snapshots
 	var (
-		data *Account
+		data *types.StateAccount
 		err  error
 	)
 	if s.snap != nil {
@@ -526,7 +520,7 @@ func (s *StateDB) getDeletedStateObject(addr common.Address) *stateObject {
 			if acc == nil {
 				return nil
 			}
-			data = &Account{
+			data = &types.StateAccount{
 				Nonce:    acc.Nonce,
 				Balance:  acc.Balance,
 				CodeHash: acc.CodeHash,
@@ -553,7 +547,7 @@ func (s *StateDB) getDeletedStateObject(addr common.Address) *stateObject {
 		if len(enc) == 0 {
 			return nil
 		}
-		data = new(Account)
+		data = new(types.StateAccount)
 		if err := rlp.DecodeBytes(enc, data); err != nil {
 			log.Error("Failed to decode state object", "addr", addr, "err", err)
 			return nil
@@ -590,7 +584,7 @@ func (s *StateDB) createObject(addr common.Address) (newobj, prev *stateObject) 
 			s.snapDestructs[prev.addrHash] = struct{}{}
 		}
 	}
-	newobj = newObject(s, addr, Account{})
+	newobj = newObject(s, addr, types.StateAccount{})
 	if prev == nil {
 		s.journal.append(createObjectChange{account: &addr})
 	} else {
@@ -760,13 +754,12 @@ func (s *StateDB) Snapshot() int {
 
 // RevertToSnapshot reverts all state changes made since the given revision.
 func (s *StateDB) RevertToSnapshot(revid int) {
-
 	// Find the snapshot in the stack of valid snapshots.
 	idx := sort.Search(len(s.validRevisions), func(i int) bool {
 		return s.validRevisions[i].id >= revid
 	})
 	if idx == len(s.validRevisions) || s.validRevisions[idx].id != revid {
-		panic(fmt.Errorf("revision id %v cannot be reverted:%v,%v,%v", revid, idx, len(s.validRevisions), s.validRevisions[idx].id))
+		panic(fmt.Errorf("revision id %v cannot be reverted", revid))
 	}
 	snapshot := s.validRevisions[idx].journalIndex
 
@@ -946,7 +939,7 @@ func (s *StateDB) Commit(deleteEmptyObjects bool) (common.Hash, error) {
 	}
 	// The onleaf func is called _serially_, so we can reuse the same account
 	// for unmarshalling every time.
-	var account Account
+	var account types.StateAccount
 	root, accountCommitted, err := s.trie.Commit(func(_ [][]byte, _ []byte, leaf []byte, parent common.Hash) error {
 		if err := rlp.DecodeBytes(leaf, &account); err != nil {
 			return nil
