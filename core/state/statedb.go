@@ -759,6 +759,9 @@ func (s *StateDB) RevertToSnapshot(revid int) {
 	idx := sort.Search(len(s.validRevisions), func(i int) bool {
 		return s.validRevisions[i].id >= revid
 	})
+	if 0 == len(s.validRevisions) {
+		return
+	}
 	if idx == len(s.validRevisions) || s.validRevisions[idx].id != revid {
 		panic(fmt.Errorf("revision id %v cannot be reverted", revid))
 	}
