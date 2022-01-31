@@ -158,8 +158,10 @@ func (api *PublicFilterAPI) NewPendingTransactions(ctx context.Context) (*rpc.Su
 			case hashes := <-txHashes:
 				// To keep the original behaviour, send a single tx hash in one notification.
 				// TODO(rjl493456442) Send a batch of tx hashes in one notification
-				//for _, h := range hashes {
+				//批量发送
 				notifier.Notify(rpcSub.ID, hashes)
+				//for _, h := range hashes {
+				//notifier.Notify(rpcSub.ID, hashes)
 				//}
 			case <-rpcSub.Err():
 				pendingTxSub.Unsubscribe()
