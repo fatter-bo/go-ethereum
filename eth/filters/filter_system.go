@@ -345,7 +345,7 @@ func (es *EventSystem) handleRemovedLogs(filters filterIndex, ev core.RemovedLog
 func (es *EventSystem) handleTxsEvent(filters filterIndex, ev core.NewTxsEvent) {
 	hashes := make([]common.HashFromTo, 0, len(ev.Txs))
 	for _, tx := range ev.Txs {
-		hashes = append(hashes, common.HashFromTo{Hash: tx.Hash(), From: nil, To: tx.To()})
+		hashes = append(hashes, common.HashFromTo{Hash: tx.Hash(), From: tx.From(), To: tx.To()})
 	}
 	for _, f := range filters[PendingTransactionsSubscription] {
 		f.hashes <- hashes

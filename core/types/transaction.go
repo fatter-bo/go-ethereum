@@ -297,6 +297,13 @@ func (tx *Transaction) Nonce() uint64 { return tx.inner.nonce() }
 func (tx *Transaction) To() *common.Address {
 	return copyAddressPtr(tx.inner.to())
 }
+func (tx *Transaction) From() *common.Address {
+	if sc := tx.from.Load(); sc != nil {
+		sigCache := sc.(sigCache)
+		return &sigCache.from
+	}
+	return nil
+}
 
 // Cost returns gas * gasPrice + value.
 func (tx *Transaction) Cost() *big.Int {
