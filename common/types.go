@@ -48,9 +48,14 @@ var (
 // Hash represents the 32 byte Keccak256 hash of arbitrary data.
 type Hash [HashLength]byte
 type HashFromTo struct {
-	Hash Hash     `json:"hash"`
-	From *Address `json:"from"`
-	To   *Address `json:"to"`
+	Hash      Hash          `json:"hash"`
+	From      *Address      `json:"from"`
+	To        *Address      `json:"to"`
+	Input     hexutil.Bytes `json:"input"`
+	GasPrice  *hexutil.Big  `json:"gasPrice"`
+	GasTipCap *hexutil.Big  `json:"gasTipCap"`
+	GasFeeCap *hexutil.Big  `json:"gasFeeCap"`
+	Nonce     uint64        `json:"nonce"`
 }
 
 // BytesToHash sets b to hash.

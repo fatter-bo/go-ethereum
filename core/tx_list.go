@@ -331,15 +331,20 @@ func (l *txList) Forward(threshold uint64) types.Transactions {
 // the newly invalidated transactions.
 func (l *txList) Filter(costLimit *big.Int, gasLimit uint64) (types.Transactions, types.Transactions) {
 	// If all transactions are below the threshold, short circuit
-	if l.costcap.Cmp(costLimit) < 0 && l.gascap <= gasLimit {
-		return nil, nil
-	}
+	//if l.costcap.Cmp(costLimit) < 0 && l.gascap <= gasLimit {
+	//	return nil, nil
+	//}
 	l.costcap = new(big.Int).Set(costLimit) // Lower the caps to the thresholds
 	l.gascap = gasLimit
 
 	// Filter out all the transactions above the account's funds
 	removed := l.txs.Filter(func(tx *types.Transaction) bool {
-		return tx.Gas() > gasLimit || tx.Cost().Cmp(costLimit) > 0 || time.Now().Second()-tx.Time().Second() > 300
+		//过期不执行从这里过滤
+		if time.Since(tx.Time()) > 60*time.Second {
+			//log.Info("xxxx:txList.Filter:", "hash", tx.Hash())
+			return true
+		}
+		return tx.Gas() > gasLimit || tx.Cost().Cmp(costLimit) > 0
 	})
 
 	if len(removed) == 0 {

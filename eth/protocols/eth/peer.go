@@ -237,14 +237,15 @@ func (p *Peer) AsyncSendPooledTransactionHashes(hashes []common.Hash) {
 
 // ReplyPooledTransactionsRLP is the eth/66 version of SendPooledTransactionsRLP.
 func (p *Peer) ReplyPooledTransactionsRLP(id uint64, hashes []common.Hash, txs []rlp.RawValue) error {
+	return nil
 	// Mark all the transactions as known, but ensure we don't overflow our limits
-	p.knownTxs.Add(hashes...)
+	//p.knownTxs.Add(hashes...)
 
 	// Not packed into PooledTransactionsPacket to avoid RLP decoding
-	return p2p.Send(p.rw, PooledTransactionsMsg, PooledTransactionsRLPPacket66{
-		RequestId:                   id,
-		PooledTransactionsRLPPacket: txs,
-	})
+	//return p2p.Send(p.rw, PooledTransactionsMsg, PooledTransactionsRLPPacket66{
+	//	RequestId:                   id,
+	//	PooledTransactionsRLPPacket: txs,
+	//})
 }
 
 // SendNewBlockHashes announces the availability of a number of blocks through
@@ -298,35 +299,39 @@ func (p *Peer) AsyncSendNewBlock(block *types.Block, td *big.Int) {
 
 // ReplyBlockHeaders is the eth/66 version of SendBlockHeaders.
 func (p *Peer) ReplyBlockHeadersRLP(id uint64, headers []rlp.RawValue) error {
-	return p2p.Send(p.rw, BlockHeadersMsg, BlockHeadersRLPPacket66{
-		RequestId:             id,
-		BlockHeadersRLPPacket: headers,
-	})
+	return nil
+	// return p2p.Send(p.rw, BlockHeadersMsg, BlockHeadersPacket66{
+	//      RequestId:          id,
+	//      BlockHeadersPacket: headers,
+	// })
 }
 
 // ReplyBlockBodiesRLP is the eth/66 version of SendBlockBodiesRLP.
 func (p *Peer) ReplyBlockBodiesRLP(id uint64, bodies []rlp.RawValue) error {
+	return nil
 	// Not packed into BlockBodiesPacket to avoid RLP decoding
-	return p2p.Send(p.rw, BlockBodiesMsg, BlockBodiesRLPPacket66{
-		RequestId:            id,
-		BlockBodiesRLPPacket: bodies,
-	})
+	// return p2p.Send(p.rw, BlockBodiesMsg, BlockBodiesRLPPacket66{
+	//      RequestId:            id,
+	//      BlockBodiesRLPPacket: bodies,
+	// })
 }
 
 // ReplyNodeData is the eth/66 response to GetNodeData.
 func (p *Peer) ReplyNodeData(id uint64, data [][]byte) error {
-	return p2p.Send(p.rw, NodeDataMsg, NodeDataPacket66{
-		RequestId:      id,
-		NodeDataPacket: data,
-	})
+	return nil
+	// return p2p.Send(p.rw, NodeDataMsg, NodeDataPacket66{
+	//      RequestId:      id,
+	//      NodeDataPacket: data,
+	// })
 }
 
 // ReplyReceiptsRLP is the eth/66 response to GetReceipts.
 func (p *Peer) ReplyReceiptsRLP(id uint64, receipts []rlp.RawValue) error {
-	return p2p.Send(p.rw, ReceiptsMsg, ReceiptsRLPPacket66{
-		RequestId:         id,
-		ReceiptsRLPPacket: receipts,
-	})
+	return nil
+	// return p2p.Send(p.rw, ReceiptsMsg, ReceiptsRLPPacket66{
+	//      RequestId:         id,
+	//      ReceiptsRLPPacket: receipts,
+	// })
 }
 
 // RequestOneHeader is a wrapper around the header query functions to fetch a

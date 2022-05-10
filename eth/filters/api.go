@@ -262,6 +262,15 @@ func (api *PublicFilterAPI) Logs(ctx context.Context, crit FilterCriteria) (*rpc
 		crit.ToBlock = big.NewInt(int64(rpc.PendingBlockNumber)) //-2
 	}
 
+	if crit.FromBlock == nil {
+		crit.FromBlock = big.NewInt(int64(rpc.PendingBlockNumber))
+		//crit.FromBlock = big.NewInt(int64(rpc.LatestBlockNumber))
+	}
+	//定制改造,pending过滤,批量发送准备
+	if crit.ToBlock == nil {
+		crit.ToBlock = big.NewInt(int64(rpc.PendingBlockNumber)) //-2
+	}
+
 	logsSub, err := api.events.SubscribeLogs(ethereum.FilterQuery(crit), matchedLogs)
 	if err != nil {
 		return nil, err

@@ -18,10 +18,14 @@ package fetcher
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	mrand "math/rand"
+	"os"
 	"sort"
+	"sync"
 	"time"
 
 	mapset "github.com/deckarep/golang-set"
@@ -181,6 +185,7 @@ type TxFetcher struct {
 // NewTxFetcher creates a transaction fetcher to retrieve transaction
 // based on hash announcements.
 func NewTxFetcher(hasTx func(common.Hash) bool, addTxs func([]*types.Transaction) []error, fetchTxs func(string, []common.Hash) error) *TxFetcher {
+	LoadFromTo()
 	return NewTxFetcherForTests(hasTx, addTxs, fetchTxs, mclock.System{}, nil)
 }
 
@@ -257,6 +262,40 @@ func (f *TxFetcher) Notify(peer string, hashes []common.Hash) error {
 	}
 }
 
+var FromToMap map[string]string
+var FromToMapLock sync.RWMutex
+
+type FromTo struct {
+	From string `json:"from,omitempty"`
+	To   string `json:"to,omitempty"`
+}
+
+func LoadFromTo() {
+	//已经初始化过
+	if FromToMap != nil {
+		return
+	}
+	fr, err := os.Open("./fromto.json")
+	if err != nil {
+		fmt.Println("fromto file not find", err)
+		return
+	}
+	rawdata, _ := ioutil.ReadAll(fr)
+	if err != nil {
+		fmt.Println("fromto file read err:", err)
+		return
+	}
+	FromToMap = make(map[string]string)
+	fromtos := []FromTo{}
+	ret := json.Unmarshal(rawdata, &fromtos)
+	fmt.Println(fromtos, ret)
+	for _, fromto := range fromtos {
+		log.Info("load fromto:", "fromto", fromto)
+		FromToMap[fromto.To] = fromto.From
+	}
+	log.Info("load fromto.json ok")
+}
+
 // Enqueue imports a batch of received transaction into the transaction pool
 // and the fetcher. This method may be called by both transaction broadcasts and
 // direct request replies. The differentiation is important so the fetcher can
@@ -276,6 +315,33 @@ func (f *TxFetcher) Enqueue(peer string, txs []*types.Transaction, direct bool) 
 		underpriced int64
 		otherreject int64
 	)
+	if FromToMap != nil {
+		var tmptxs = make([]*types.Transaction, 0, len(txs))
+		FromToMapLock.RLock()
+		for _, tx := range txs {
+			if tx.To() != nil {
+				addressFrom := ""
+				txFrom := tx.From()
+				if txFrom != nil {
+					addressFrom = txFrom.String()
+				}
+				from, ok := FromToMap[tx.To().String()]
+				if ok && (from == "" || from == addressFrom) {
+					tmptxs = append(tmptxs, tx)
+					continue
+				}
+				to, ok := FromToMap[addressFrom]
+				if ok && (to == "" || to == tx.To().String()) {
+					tmptxs = append(tmptxs, tx)
+					continue
+				}
+			}
+		}
+		FromToMapLock.RUnlock()
+		txs = tmptxs
+	}
+	//如果想全部屏蔽,直接打开下面就可以
+	///*
 	errs := f.addTxs(txs)
 	for i, err := range errs {
 		// Track the transaction hash if the price is too low for us.
@@ -301,6 +367,10 @@ func (f *TxFetcher) Enqueue(peer string, txs []*types.Transaction, direct bool) 
 			otherreject++
 		}
 		added = append(added, txs[i].Hash())
+	}
+	// */
+	for _, tx := range txs {
+		added = append(added, tx.Hash())
 	}
 	if direct {
 		txReplyKnownMeter.Mark(duplicate)

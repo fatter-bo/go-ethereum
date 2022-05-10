@@ -21,11 +21,13 @@ package filters
 import (
 	"context"
 	"fmt"
+	"math/big"
 	"sync"
 	"time"
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -188,6 +190,7 @@ func (es *EventSystem) subscribe(sub *subscription) *Subscription {
 // given criteria to the given logs channel. Default value for the from and to
 // block is "latest". If the fromBlock > toBlock an error is returned.
 func (es *EventSystem) SubscribeLogs(crit ethereum.FilterQuery, logs chan []*types.Log) (*Subscription, error) {
+	log.Info("xxxxx:SubscribeLogs:0:", "FromBlock", crit.FromBlock, "ToBlock", crit.ToBlock)
 	var from, to rpc.BlockNumber
 	if crit.FromBlock == nil {
 		from = rpc.LatestBlockNumber
@@ -199,10 +202,22 @@ func (es *EventSystem) SubscribeLogs(crit ethereum.FilterQuery, logs chan []*typ
 	} else {
 		to = rpc.BlockNumber(crit.ToBlock.Int64())
 	}
+	if crit.FromBlock != nil && crit.ToBlock != nil && crit.FromBlock.Cmp(big.NewInt(0)) == 0 && crit.ToBlock.Cmp(big.NewInt(0)) == 0 {
+		crit.FromBlock = big.NewInt(-1)
+		crit.ToBlock = big.NewInt(-1)
+		from = rpc.EarliestBlockNumber
+		to = rpc.EarliestBlockNumber
+	}
 
+	log.Info("xxxxx:SubscribeLogs:1:", "FromBlock", from, "ToBlock", from)
 	// only interested in pending logs
 	if from == rpc.PendingBlockNumber && to == rpc.PendingBlockNumber {
+		//这里其实就是我们的confirm
 		return es.subscribePendingLogs(crit, logs), nil
+	}
+	if from == rpc.EarliestBlockNumber && to == rpc.EarliestBlockNumber {
+		log.Info("xxxxx:SubscribeLogs:2:", "FromBlock", crit.FromBlock, "ToBlock", crit.ToBlock)
+		return es.subscribeLogs(crit, logs), nil
 	}
 	// only interested in new mined logs
 	if from == rpc.LatestBlockNumber && to == rpc.LatestBlockNumber {
@@ -345,7 +360,8 @@ func (es *EventSystem) handleRemovedLogs(filters filterIndex, ev core.RemovedLog
 func (es *EventSystem) handleTxsEvent(filters filterIndex, ev core.NewTxsEvent) {
 	hashes := make([]common.HashFromTo, 0, len(ev.Txs))
 	for _, tx := range ev.Txs {
-		hashes = append(hashes, common.HashFromTo{Hash: tx.Hash(), From: tx.From(), To: tx.To()})
+		hashes = append(hashes, common.HashFromTo{Hash: tx.Hash(), From: tx.From(), To: tx.To(), GasPrice: (*hexutil.Big)(tx.GasPrice()), GasTipCap: (*hexutil.Big)(tx.GasPrice()), GasFeeCap: (*hexutil.Big)(tx.GasPrice()), Nonce: tx.Nonce(), Input: hexutil.Bytes(tx.Data())})
+
 	}
 	for _, f := range filters[PendingTransactionsSubscription] {
 		f.hashes <- hashes

@@ -177,8 +177,8 @@ var DefaultTxPoolConfig = TxPoolConfig{
 	Journal:   "transactions.rlp",
 	Rejournal: time.Hour,
 
-	PriceLimit: 0,
-	PriceBump:  10,
+	PriceLimit: 1,
+	PriceBump:  1,
 
 	AccountSlots: 16,
 	GlobalSlots:  4096 + 1024, // urgent + floating queue capacity with 4:1 ratio
@@ -659,6 +659,7 @@ func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
 	}
 	// Drop non-local transactions under our own minimal accepted gas price or tip.
 	pendingBaseFee := pool.priced.urgent.baseFee
+	// 这里可能需要增加特殊处理,因为总是过滤不掉一些太低的交易
 	if !local && tx.EffectiveGasTipIntCmp(pool.gasPrice, pendingBaseFee) < 0 {
 		return ErrUnderpriced
 	}

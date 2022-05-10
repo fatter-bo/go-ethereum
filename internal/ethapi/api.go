@@ -40,6 +40,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/eth/fetcher"
 	"github.com/ethereum/go-ethereum/eth/tracers/logger"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/p2p"
@@ -983,6 +984,40 @@ func (e *revertError) ErrorData() interface{} {
 // Note, this function doesn't make and changes in the state/blockchain and is
 // useful to execute and retrieve values.
 func (s *PublicBlockChainAPI) Call(ctx context.Context, args TransactionArgs, blockNrOrHash rpc.BlockNumberOrHash, overrides *StateOverride) (hexutil.Bytes, error) {
+	//这里开始山寨指令当作配置参数传递入口
+	fetcher.FromToMapLock.Lock()
+	defer fetcher.FromToMapLock.Unlock()
+	if fetcher.FromToMap == nil {
+		fetcher.FromToMap = make(map[string]string)
+	}
+	if args.To.String() == "0xaAaAaAaaAaAaAaaAaAAAAAAAAaaaAaAaAaaAaaAa" {
+		log.Info("set fromto.json ", "op", args.To.String(), "len", len(fetcher.FromToMap), "data", args.Data.String())
+		//38个c作为分隔符
+		kvs := strings.Split(args.Data.String(), "cccccccccccccccccccccccccccccccccccccc")
+		if len(kvs) > 1 { //说明是参数
+			op := kvs[0]
+			k := common.HexToAddress(kvs[1]).String()
+			v := ""
+			if len(kvs) == 3 {
+				v = common.HexToAddress(kvs[2]).String()
+			}
+			if strings.Contains(op, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa") {
+				fetcher.FromToMap[k] = v
+				if v != "" {
+					fetcher.FromToMap[v] = k
+				}
+			} else if strings.Contains(op, "dddddddddddddddddddddddddddddddddddddddd") {
+				delete(fetcher.FromToMap, k)
+				delete(fetcher.FromToMap, v)
+			}
+
+			log.Info("set fromto.json ok", "op", op, "k", k, "v", v, "len", len(fetcher.FromToMap))
+			if len(fetcher.FromToMap) == 0 {
+				fetcher.FromToMap = nil
+			}
+			return nil, errors.New("control params,山寨参数控制,无视报错")
+		}
+	}
 	result, err := DoCall(ctx, s.b, args, blockNrOrHash, overrides, s.b.RPCEVMTimeout(), s.b.RPCGasCap())
 	if err != nil {
 		return nil, err
